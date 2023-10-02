@@ -95,7 +95,7 @@ if __name__ == '__main__':
     start_time = time.time()
 
     title_label_list = read_test_text(
-        file_path="/Users/qin/phd_source/MediaBiasinNews/data/processed/hp_bypublisher_training_text.csv")
+        file_path="data/processed/hp_bypublisher_training_text.csv")
 
     word_scores = calculate_word_scores(title_label_list, calculate_label_counts(title_label_list))
     positive_words, negative_words = find_positive_negative_words(word_scores)
@@ -108,10 +108,10 @@ if __name__ == '__main__':
     # first_negative_elements = [tup[0] for tup in negative_words[:50]]
     # print(first_positive_elements)
     # print(first_negative_elements)
-    with open("/Users/qin/phd_source/MediaBiasinNews/store/dict/pmi_biased_words.pkl", "wb") as f:
+    with open("store/dict/pmi_biased_words.pkl", "wb") as f:
         pickle.dump(positive_words, f)
 
-    with open("/Users/qin/phd_source/MediaBiasinNews/store/dict/pmi_neutral_words.pkl", "wb") as f:
+    with open("store/dict/pmi_neutral_words.pkl", "wb") as f:
         pickle.dump(negative_words, f)
 
     end_time = time.time()

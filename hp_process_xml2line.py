@@ -35,9 +35,9 @@ def clean_txt(text):
 def process():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--articles_file_path", type=str, default="../articles-training-bypublisher-20181122.xml")
-    parser.add_argument("--labels_file_path", type=str, default="../ground-truth-training-bypublisher-20181122.xml")
-    parser.add_argument("--write_path", type=str, default="../hp_bypublisher_training_text.csv")
+    parser.add_argument("--articles_file_path", type=str, default="data/articles-training-bypublisher-20181122.xml")
+    parser.add_argument("--labels_file_path", type=str, default="data/ground-truth-training-bypublisher-20181122.xml")
+    parser.add_argument("--write_path", type=str, default="data/processed/hp_bypublisher_training_text.csv")
 
     args = parser.parse_args()
 
