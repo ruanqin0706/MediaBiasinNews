@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification, AdamW
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import random
 import numpy as np
 import torch
@@ -91,7 +91,18 @@ def evaluate(model, dataloader, device):
             all_labels.extend(labels.tolist())
 
     accuracy = accuracy_score(all_labels, all_preds)
-    return accuracy
+    # Calculate precision
+    precision = precision_score(all_labels, all_preds, average='weighted')
+    print("Precision:", precision)
+
+    # Calculate recall
+    recall = recall_score(all_labels, all_preds, average='weighted')
+    print("Recall:", recall)
+
+    # Calculate F1 score
+    f1 = f1_score(all_labels, all_preds, average='weighted')
+    print("F1 Score:", f1)
+    return accuracy, precision, recall, f1
 
 
 def parse_params():
@@ -152,6 +163,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.makedirs(args.save_dir, exist_ok=True)
 best_checkpoints = []
 avg_best_accuracy = 0
+best_accuracy_list = []
+best_precision_list = []
+best_recall_list = []
+best_f1_list = []
+
 for fold, (train_idx, val_idx) in enumerate(kf.split(np.zeros(len(dataset)), [label for _, label in dataset])):
     print(f"Fold {fold + 1}/{k}")
 
@@ -171,6 +187,9 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(np.zeros(len(dataset)), [la
     optimizer = AdamW(model.parameters(), lr=args.lr)
 
     best_accuracy = 0
+    best_precision = 0
+    best_recall = 0
+    best_f1 = 0
 
     for epoch in range(num_epochs):
         total_loss = 0
@@ -193,15 +212,23 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(np.zeros(len(dataset)), [la
         print(f"Epoch [{epoch + 1}/{num_epochs}] - Loss: {average_loss:.4f}")
 
         # Evaluate on the validation set
-        accuracy = evaluate(model, val_dataloader, device)
+        accuracy, precision, recall, f1 = evaluate(model, val_dataloader, device)
         print(f"Validation Accuracy: {accuracy:.4f}")
 
         # Check if the current model is the best
         if accuracy > best_accuracy:
             best_accuracy = accuracy
+            best_precision = precision
+            best_recall = recall
+            best_f1 = f1
             # Save the current model checkpoint
             checkpoint_path = os.path.join(args.save_dir, f"best_model_checkpoint_fold_{fold}.pth")
             torch.save(model.state_dict(), checkpoint_path)
+
+    best_accuracy_list.append(best_accuracy)
+    best_recall_list.append(best_recall)
+    best_precision_list.append(best_precision)
+    best_f1_list.append(best_f1)
 
     avg_best_accuracy += best_accuracy
     # Load the best checkpoint for inference
@@ -211,3 +238,13 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(np.zeros(len(dataset)), [la
     best_checkpoints.append(best_checkpoint)
 
 print("average best accuracy:", avg_best_accuracy / k)
+
+print("accuracy: ", np.mean(best_accuracy_list), np.std(best_accuracy_list))
+print("precision: ", np.mean(best_precision_list), np.std(best_precision_list))
+print("recall: ", np.mean(best_recall_list), np.std(best_recall_list))
+print("f1: ", np.mean(best_f1_list), np.std(best_f1_list))
+print("*"*10)
+print("accuracy: ", f'{np.mean(best_accuracy_list)*100:.2f}', f'{np.std(best_accuracy_list)*100:.2f}')
+print("precision: ", f'{np.mean(best_precision_list)*100:.2f}', f'{np.std(best_precision_list)*100:.2f}')
+print("recall: ", f'{np.mean(best_recall_list)*100:.2f}', f'{np.std(best_recall_list)*100:.2f}')
+print("f1: ", f'{np.mean(best_f1_list)*100:.2f}', f'{np.std(best_f1_list)*100:.2f}')
