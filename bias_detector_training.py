@@ -119,11 +119,11 @@ def parse_params():
     # for data
     parser.add_argument("--max_len", type=int, default=50)
     parser.add_argument("--data_file_path", type=str,
-                        default="/Users/qin/phd_source/MediaBiasinNews/data/processed/hp_bypublisher_training_text.csv")
+                        default="data/processed/hp_bypublisher_training_text.csv")
 
     # For storing
     parser.add_argument("--save_dir", type=str,
-                        default="/Users/qin/phd_source/MediaBiasinNews/store/checkpoint")
+                        default="store/checkpoint")
     return parser.parse_args()
 
 

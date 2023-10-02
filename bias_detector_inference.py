@@ -1,8 +1,5 @@
 import argparse
-import glob
-import os
 import pickle
-
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -61,12 +58,21 @@ def parse_params():
     parser.add_argument("--bs", type=int, default=32)
     parser.add_argument("--max_len", type=int, default=50)
 
-    parser.add_argument("--data_file_path", type=str,
-                        default="/Users/qin/phd_source/MediaBiasinNews/data/processed/hp_bypublisher_training_text.csv")
-
     # For storing
-    parser.add_argument("--save_dir", type=str,
-                        default="/Users/qin/phd_source/MediaBiasinNews/store/checkpoint")
+    parser.add_argument("--checkpoint_path", type=str,
+                        default="store/checkpoint_1/best_model_checkpoint_fold_2.pth")
+
+    parser.add_argument("--action_consistency_check", action="store_true", default=True)
+    parser.add_argument("--consistency_path", type=str,
+                        default="data/processed/consistency.npy")
+
+    parser.add_argument("--mode", choices=["processed", "originals"], default="processed")
+
+    parser.add_argument("--processed_file_path", type=str,
+                        default="store/replacement/replaced_text.pkl")
+    parser.add_argument("--data_file_path", type=str,
+                        default="data/processed/hp_bypublisher_training_text.csv")
+
     return parser.parse_args()
 
 
@@ -76,55 +82,53 @@ batch_size = args.bs
 max_length = args.max_len
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Inference code
-# test_texts = ["This is a news title to classify.", "Another news title to classify.",
-#               ]  # Pseudo code for testing
+if args.mode == "processed":
+    print("processed")
+    # processed text
+    with open("/Users/qin/phd_source/MediaBiasinNews/store/replacement/replaced_text.pkl", "rb") as f:
+        test_texts = pickle.load(f)
+else:
+    print("originals")
+    # original text
+    test_texts = read_test_text(file_path=args.data_file_path)
 
-with open("/Users/qin/phd_source/MediaBiasinNews/store/replacement/replaced_text.pkl", "rb") as f:
-    test_texts = pickle.load(f)
+if args.action_consistency_check:
+    with open(args.consistency_path, "rb") as f:
+        consistency_idx_arr = np.load(f)
+else:
+    consistency_idx_arr = None
 
-# test_texts = read_test_text(file_path=args.data_file_path)
 test_dataset = TextClassificationDataset(test_texts, [0] * len(test_texts), tokenizer,
                                          max_length)  # Labels don't matter for inference
 test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-best_checkpoints = []
-for checkpoint_path in sorted(glob.glob(os.path.join(args.save_dir, "*.pth"))):
-    print("Load ckpt: ", checkpoint_path)
-    # Load the best checkpoint for inference
-    best_checkpoint = DistilBertForSequenceClassification.from_pretrained(args.model_name, num_labels=2)
-    best_checkpoint.load_state_dict(torch.load(checkpoint_path))
-    best_checkpoint.to(device)
-    best_checkpoints.append(best_checkpoint)
+best_model = DistilBertForSequenceClassification.from_pretrained(args.model_name, num_labels=2)
+best_model.load_state_dict(torch.load(args.checkpoint_path))
+best_model.to(device)
 
-print(len(best_checkpoints))
-for fold, best_model in enumerate(best_checkpoints):
-    # Initialize a list to store predicted probabilities
-    all_probabilities = []
+# Initialize a list to store predicted probabilities
+all_probabilities = []
 
-    best_model.eval()
-    fold_probabilities = []
+best_model.eval()
+fold_probabilities = []
 
-    with torch.no_grad():
-        for batch in test_dataloader:
-            input_ids = batch['input_ids'].to(device)
-            attention_mask = batch['attention_mask'].to(device)
+with torch.no_grad():
+    for batch in test_dataloader:
+        input_ids = batch['input_ids'].to(device)
+        attention_mask = batch['attention_mask'].to(device)
 
-            outputs = best_model(input_ids, attention_mask=attention_mask)
-            logits = outputs.logits
-            probabilities = nn.functional.softmax(logits, dim=1)
-            fold_probabilities.extend(probabilities[:, 1].cpu().tolist())
+        outputs = best_model(input_ids, attention_mask=attention_mask)
+        logits = outputs.logits
+        probabilities = nn.functional.softmax(logits, dim=1)
+        fold_probabilities.extend(probabilities[:, 0].cpu().tolist())
 
-    all_probabilities.append(fold_probabilities)
+all_probabilities.append(fold_probabilities)
 
-    # Calculate the average probabilities from all folds
-    average_probabilities = np.mean(all_probabilities, axis=0)
+# Calculate the average probabilities from all folds
+average_probabilities = np.mean(all_probabilities, axis=0)
 
-    # print("Predicted Probabilities:")
-    # print(average_probabilities)
+if isinstance(consistency_idx_arr, np.ndarray):
+    consistency_idx_arr = consistency_idx_arr.astype(np.int32)
+    average_probabilities = average_probabilities[consistency_idx_arr]
 
-    count = np.count_nonzero(average_probabilities <= 0.5)
-
-    print("Number of elements less than or equal to the threshold:", count)
-
-    print("*"*10)
+print(f"the average probability under {args.mode} mode is: ", np.average(average_probabilities))
