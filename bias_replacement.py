@@ -7,50 +7,7 @@ from nltk.tokenize import word_tokenize
 from nltk import pos_tag
 from gensim.models import KeyedVectors
 import numpy as np
-# nltk.download('universal_tagset')
-import pandas as pd
 
-
-# data
-# news.tsv
-# training data (behavior files)
-# observation data
-
-# training algorithms
-#
-
-# 训练词典，识别bias polarity of words
-#
-
-
-# def find_similarity_words(word):
-#     pass
-#     # return word_list
-#
-# def check_polarity(word):
-#     return True
-#
-# def process_text(line):
-#     pass
-#     # return [(word, pos)]
-#
-# def replace_words():
-#     pass
-#
-#     pos_exempt_set = set()
-#
-#     # {nid: title}
-#     nid2title = dict()
-#     for nid, line in nid2title.items():
-#         tuple_list = process_text(line)
-#         for word, pos in tuple_list:
-#             if pos not in pos_exempt_set and check_polarity(word):
-
-
-# 如何替换词。how to replace words?
-# 1.对词语遍历， 如果词语是biased，就去找和它相似的词语（用similarity embedding）,
-# 再做过滤，需要相同的词性，然后区分biased还是neutral，如果存在neutral的，按照分数选择一个，如过都是biased，按照分数选择比当前词低的
-# # 涉及一个问题，要不要替换所有的title？
 
 # Read data from a text file
 def read_test_text(file_path):
@@ -189,20 +146,20 @@ def replace_words_in_text(word2emb_path, annoy_index_path, title_label_list_path
 
 
 if __name__ == '__main__':
-    # get_words(title_label_list_path="/Users/qin/phd_source/MediaBiasinNews/data/processed/hp_bypublisher_training_text.csv",
-    #           emb_path="/Users/qin/Downloads/data0404/MINDlarge_utils/embedding.npy",
-    #           word_path="/Users/qin/Downloads/data0404/MINDlarge_utils/word_dict.pkl",
-    #           pre_train_dict_path="/Users/qin/gensim-data/word2vec-google-news-300/word2vec-google-news-300.gz",
-    #           write_path="/Users/qin/phd_source/MediaBiasinNews/store/replacement/word2emb.pkl")
-    #
-    # build_annoy_index(word2emb_path="/Users/qin/phd_source/MediaBiasinNews/store/replacement/word2emb.pkl",
-    #                   save_dir="/Users/qin/phd_source/MediaBiasinNews/store/replacement",
-    #                   k=10,
-    #                   n_trees=50)
+    get_words(title_label_list_path="data/processed/hp_bypublisher_training_text.csv",
+              emb_path="data/utils/embedding.npy",
+              word_path="data/utils/word_dict.pkl",
+              pre_train_dict_path="data/utils/word2vec-google-news-300.gz",
+              write_path="store/replacement/word2emb.pkl")
 
-    replace_words_in_text(word2emb_path="/Users/qin/phd_source/MediaBiasinNews/store/replacement/word2emb.pkl",
-                          annoy_index_path="/Users/qin/phd_source/MediaBiasinNews/store/replacement/word_annoy_t50.ann",
-                          title_label_list_path="/Users/qin/phd_source/MediaBiasinNews/data/processed/hp_bypublisher_training_text.csv",
-                          pmi_biased_words_path="/Users/qin/phd_source/MediaBiasinNews/store/dict/pmi_biased_words.pkl",
-                          pmi_neutral_words_path="/Users/qin/phd_source/MediaBiasinNews/store/dict/pmi_neutral_words.pkl",
-                          write_path="/Users/qin/phd_source/MediaBiasinNews/store/replacement/replaced_text.pkl")
+    build_annoy_index(word2emb_path="store/replacement/word2emb.pkl",
+                      save_dir="store/replacement",
+                      k=10,
+                      n_trees=50)
+
+    replace_words_in_text(word2emb_path="store/replacement/word2emb.pkl",
+                          annoy_index_path="store/replacement/word_annoy_t50.ann",
+                          title_label_list_path="data/processed/hp_bypublisher_training_text.csv",
+                          pmi_biased_words_path="store/dict/pmi_biased_words.pkl",
+                          pmi_neutral_words_path="store/dict/pmi_neutral_words.pkl",
+                          write_path="store/replacement/replaced_text.pkl")
