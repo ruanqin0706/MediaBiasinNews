@@ -1,7 +1,6 @@
 # MediaBiasinNews
 
-
-![Media Bias](img/pipeline.png)
+This repository contains the source code for the paper titled "Reducing Media Bias in News Headlines", which aims to detect and mitigate media bias in news.
 
 ## Project Overview
 

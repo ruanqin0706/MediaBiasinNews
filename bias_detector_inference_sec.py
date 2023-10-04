@@ -1,24 +1,17 @@
 import argparse
 import pickle
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 import numpy as np
 
 
-# Read data from a text file
-def read_test_text(file_path):
-    data_list = []
-    with open(file_path, "r") as f:
-        for line in f:
-            line_split = line.replace("\n", "").split("\t")
+# original text, processed_text [a list of text]
+def read_text(text_file_path):
+    with open(text_file_path, "rb") as f:
+        text_list = pickle.load(f)
 
-            news_title = line_split[-1]
-            if 'true' == line_split[1]:
-                data_list.append(news_title)
-    print(len(data_list))
-    return data_list
+    return text_list
 
 
 # Define a custom dataset
@@ -62,16 +55,16 @@ def parse_params():
     parser.add_argument("--checkpoint_path", type=str,
                         default="store/checkpoint_1/best_model_checkpoint_fold_2.pth")
 
-    parser.add_argument("--action_consistency_check", action="store_true", default=True)
-    parser.add_argument("--consistency_path", type=str,
-                        default="data/processed/consistency.npy")
-
     parser.add_argument("--mode", choices=["processed", "originals"], default="processed")
+    parser.add_argument("--pos", choices=['ALL', 'ADJ', 'ADV', 'VERB', 'NOUN'], default='NOUN')
 
-    parser.add_argument("--processed_file_path", type=str,
-                        default="store/replacement/replaced_text.pkl")
-    parser.add_argument("--data_file_path", type=str,
-                        default="data/processed/hp_bypublisher_training_text.csv")
+    parser.add_argument("--text_file_path", type=str,
+                        default="new/replace/replaced_text")
+    # default="new/text/consistency.pkl")
+
+    # sent emb saved path
+    parser.add_argument("--save_path", type=str,
+                        default="new/sent_comparison/sent")
 
     return parser.parse_args()
 
@@ -82,53 +75,45 @@ batch_size = args.bs
 max_length = args.max_len
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-if args.mode == "processed":
-    print("processed")
-    # processed text
-    with open("/Users/qin/phd_source/MediaBiasinNews/store/replacement/replaced_text.pkl", "rb") as f:
-        test_texts = pickle.load(f)
+if args.mode == "originals":
+    test_texts = read_text(text_file_path=f"{args.text_file_path}")  # original
+elif args.mode == "processed":
+    test_texts = read_text(text_file_path=f"{args.text_file_path}_{args.pos}.pkl")  # processed text
 else:
-    print("originals")
-    # original text
-    test_texts = read_test_text(file_path=args.data_file_path)
-
-if args.action_consistency_check:
-    with open(args.consistency_path, "rb") as f:
-        consistency_idx_arr = np.load(f)
-else:
-    consistency_idx_arr = None
+    1 / 0
+print(f"current mode is: {args.mode}")
 
 test_dataset = TextClassificationDataset(test_texts, [0] * len(test_texts), tokenizer,
                                          max_length)  # Labels don't matter for inference
 test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 best_model = DistilBertForSequenceClassification.from_pretrained(args.model_name, num_labels=2)
-best_model.load_state_dict(torch.load(args.checkpoint_path))
+# best_model.load_state_dict(torch.load(args.checkpoint_path))
 best_model.to(device)
 
-# Initialize a list to store predicted probabilities
-all_probabilities = []
-
 best_model.eval()
-fold_probabilities = []
+
+# Initialize a list to store sentence emb
+sentence_embedding_list = []
 
 with torch.no_grad():
     for batch in test_dataloader:
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
 
-        outputs = best_model(input_ids, attention_mask=attention_mask)
-        logits = outputs.logits
-        probabilities = nn.functional.softmax(logits, dim=1)
-        fold_probabilities.extend(probabilities[:, 0].cpu().tolist())
+        outputs = best_model(input_ids, attention_mask=attention_mask, output_hidden_states=True)
+        last_hidden_states = outputs.hidden_states[-1]
+        # Extract the embeddings for the [CLS] token (first token) of each sentence
+        sentence_embedding = last_hidden_states[:, 0, :].cpu().numpy()  # (bs, 768)
+        sentence_embedding_list.append(sentence_embedding)
 
-all_probabilities.append(fold_probabilities)
-
-# Calculate the average probabilities from all folds
-average_probabilities = np.mean(all_probabilities, axis=0)
-
-if isinstance(consistency_idx_arr, np.ndarray):
-    consistency_idx_arr = consistency_idx_arr.astype(np.int32)
-    average_probabilities = average_probabilities[consistency_idx_arr]
-
-print(f"the average probability under {args.mode} mode is: ", np.average(average_probabilities))
+sentence_emb_arr = np.concatenate(sentence_embedding_list, axis=0)
+print(sentence_emb_arr.shape)
+if args.mode == "originals":
+    real_path = f"{args.save_path}.npy"
+elif args.mode == "processed":
+    real_path = f"{args.save_path}_{args.pos}.npy"
+else:
+    1 / 0
+with open(real_path, "wb") as f:
+    np.save(f, sentence_emb_arr)

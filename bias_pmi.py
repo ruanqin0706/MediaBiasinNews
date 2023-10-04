@@ -1,6 +1,9 @@
+import argparse
 import math
 import pickle
 from collections import defaultdict
+
+from nltk import pos_tag
 from nltk.tokenize import word_tokenize
 
 
@@ -12,24 +15,19 @@ def calculate_label_counts(tuple_list):
     return label_counts
 
 
-def calculate_word_scores(reviews, label_counts):
-    # Tokenize the reviews into words
-    words = [word_tokenize(review) for review, _ in reviews]
-
-    # Flatten the word lists
-    words = [word.lower() for sublist in words for word in sublist]
-
-    # Count word frequencies
-    word_freq = defaultdict(int)
-    for word in words:
-        word_freq[word] += 1
-
-    # Calculate co-occurrence frequencies
+def calculate_word_scores(reviews, label_counts, required_pos=('ADJ', 'ADV', 'VERB', 'NOUN')):
     cooccur_freq = defaultdict(int)
     pos_freq = defaultdict(int)
     neg_freq = defaultdict(int)
+    total_word_list = []
     for review, label in reviews:
-        review_words = set(word_tokenize(review.lower()))
+        sublist = word_tokenize(review.lower())
+        word_list = []
+        for word, tag in pos_tag(sublist, tagset='universal'):
+            if tag in required_pos:
+                word_list.append(word)
+
+        review_words = set(word_list)
         for word in review_words:
             cooccur_freq[(word, label)] += 1
             if label == "True":
@@ -37,9 +35,16 @@ def calculate_word_scores(reviews, label_counts):
             elif label == "False":
                 neg_freq[word] += 1
 
+        total_word_list.extend(word_list)
+
+    # Count word frequencies
+    word_freq = defaultdict(int)
+    for word in total_word_list:
+        word_freq[word] += 1
+
     # Calculate PMI for words and store scores
     word_scores = {}
-    total_words = len(words)
+    total_words = len(total_word_list)
     for word, freq in word_freq.items():
         if len(word) > 2:
             p_word = freq / total_words
@@ -73,20 +78,19 @@ def find_positive_negative_words(word_scores):
     return positive_words, negative_words
 
 
-# Read data from a text file
 def read_test_text(file_path):
-    data_list = []
-    with open(file_path, "r") as f:
-        for line in f:
-            line_split = line.replace("\n", "").split("\t")
-
-            news_title = line_split[-1]
-            if 'true' == line_split[1]:
-                news_label = "True"
-            else:
-                news_label = "False"
-            data_list.append((news_title, news_label))
+    with open(file_path, "rb") as f:
+        data_list = pickle.load(f)
     return data_list
+
+
+def parse_params():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--file_path", type=str, default='new/2017-07-032017-07-23.pkl')
+    parser.add_argument("--pos", choices=['ALL', 'ADJ', 'ADV', 'VERB', 'NOUN'], default='ADV')
+    parser.add_argument("--pmi_bias_words_path", type=str, default='new/pmi/pmi_bias_words')
+    parser.add_argument("--pmi_neutral_words_path", type=str, default='new/pmi/pmi_neutral_words')
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
@@ -94,10 +98,28 @@ if __name__ == '__main__':
 
     start_time = time.time()
 
-    title_label_list = read_test_text(
-        file_path="data/processed/hp_bypublisher_training_text.csv")
+    args = parse_params()
 
-    word_scores = calculate_word_scores(title_label_list, calculate_label_counts(title_label_list))
+    if args.pos == 'ALL':
+        pos_set = ('ADJ', 'ADV', 'VERB', 'NOUN')
+    elif args.pos == 'ADJ':
+        pos_set = ('ADJ',)
+    elif args.pos == 'ADV':
+        pos_set = ('ADV',)
+    elif args.pos == 'VERB':
+        pos_set = ('VERB',)
+    elif args.pos == 'NOUN':
+        pos_set = ('NOUN',)
+    else:
+        1 / 0
+    print(args.pos)
+
+    title_label_list = read_test_text(
+        file_path=args.file_path)
+
+    word_scores = calculate_word_scores(title_label_list,
+                                        calculate_label_counts(title_label_list),
+                                        required_pos=pos_set)
     positive_words, negative_words = find_positive_negative_words(word_scores)
     # print(positive_words[:100])
     # print("*"*10)
@@ -108,10 +130,10 @@ if __name__ == '__main__':
     # first_negative_elements = [tup[0] for tup in negative_words[:50]]
     # print(first_positive_elements)
     # print(first_negative_elements)
-    with open("store/dict/pmi_biased_words.pkl", "wb") as f:
+    with open(f"{args.pmi_bias_words_path}_{args.pos}.pkl", "wb") as f:
         pickle.dump(positive_words, f)
 
-    with open("store/dict/pmi_neutral_words.pkl", "wb") as f:
+    with open(f"{args.pmi_neutral_words_path}_{args.pos}.pkl", "wb") as f:
         pickle.dump(negative_words, f)
 
     end_time = time.time()
