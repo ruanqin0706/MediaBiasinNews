@@ -1,6 +1,11 @@
 # MediaBiasinNews
 
 This repository contains the source code for the paper titled "Reducing Media Bias in News Headlines", which aims to detect and mitigate media bias in news.
+The paper has been accepted for presentation at The 31st Irish Conference on Artificial Intelligence and Cognitive Science (AICS 2023).
+
+The whole framework shows as follows:
+
+![Framework](img/framework.png)
 
 ## Project Overview
 
